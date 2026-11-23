@@ -42,6 +42,7 @@ type followedLog struct {
 // so a check that reads the logs at the end of a run misses the older lines.
 type logFollower struct {
 	keep func(line string) bool
+	stop context.CancelFunc
 
 	mu   lock.Mutex
 	logs map[string]*followedLog // by container ID
@@ -55,7 +56,8 @@ func (ct *ConnectivityTest) FollowCiliumLogs(ctx context.Context, scenario strin
 		return
 	}
 
-	f := &logFollower{keep: keep, logs: make(map[string]*followedLog)}
+	ctx, stop := context.WithCancel(ctx)
+	f := &logFollower{keep: keep, stop: stop, logs: make(map[string]*followedLog)}
 	for _, client := range ct.Clients() {
 		// Without debug logging, an agent takes hours to fill a kubelet log file.
 		cm, err := client.GetConfigMap(ctx, ct.params.CiliumNamespace, defaults.ConfigMapName, metav1.GetOptions{})
@@ -84,6 +86,13 @@ func (ct *ConnectivityTest) FollowCiliumLogs(ctx context.Context, scenario strin
 		}
 	}
 	ct.logFollower = f
+}
+
+// StopFollowingLogs closes the log streams that FollowCiliumLogs opened.
+func (ct *ConnectivityTest) StopFollowingLogs() {
+	if ct.logFollower != nil {
+		ct.logFollower.stop()
+	}
 }
 
 // FollowedLog returns the kept lines of a container, oldest first, and the time

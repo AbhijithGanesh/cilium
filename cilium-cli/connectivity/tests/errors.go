@@ -344,6 +344,8 @@ func (n *noErrorsInLogs) Run(ctx context.Context, t *check.Test) {
 		}
 	}
 
+	// Nothing reads the followed logs after this check.
+	t.Context().StopFollowingLogs()
 }
 
 // NoUnexpectedPacketDrops checks whether there were no drops due to expected
